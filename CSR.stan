@@ -6,9 +6,22 @@ data {
   vector[numAY] premium;
 
   vector[numObs] cumulative_loss;
-  vector[numObs] AY_Index;
-  vector[numObs] Lag;
+  int AY_Index[numObs];
+  int Lag[numObs];
   
+  // New predicted quantities
+
+}
+
+transformed data {
+  vector[numObs] log_loss;
+  vector[numAY] log_premium;
+  
+  log_loss = log(cumulative_loss);
+  log_premium = log(premium);
+}
+
+parameters {
   // prior parameters
   // In the paper, Meyers uses a lower bound of 1.0
   real log_elr_lower;
@@ -21,35 +34,29 @@ data {
   real a_lower;
   real a_upper;
   
-  // New predicted quantities
-
-}
-
-transformed data {
-  vector[numObs] log_loss;
-  
-  log_loss = log(cumulative_loss);
+  // real elr;
   
 }
 
-parameters {
+transformed parameters {
+  
+  // log_elr = log(elr);
+}
+
+model {
+  int iAY;
+  int iLag;
+  
   real log_elr;
+  real aSig;
+  real sigma[numDevs];
+  
   real gamma;               // gamma is a parameter, not a function here
   
   vector[numAY] alpha;
   vector[numDevs] beta;
-  real sigma[numDevs];
-  real aSig;
   vector[numObs] mu;
-}
-
-transformed parameters {
-  real log_elr;
   
-  log_elr = log(elr);
-}
-
-model {
   log_elr ~ uniform(log_elr_lower, log_elr_upper);
   gamma ~ normal(gamma_mean, gamma_sd);
   
@@ -65,13 +72,15 @@ model {
   }
   beta[numDevs] = 0;
   
-  for (iAY in 1:numAY){
-    alpha[iAY] ~ normal(log_premium[iAY] + log_elr, alpha_sd);
+  for (nAY in 1:numAY){
+    alpha[nAY] ~ normal(log_premium[nAY] + log_elr, alpha_sd);
   }
   
   for (iObs in 1:numObs){
-    mu[iObs] = alpha[AY_Index[iObs]] + beta[Lag[iObs]] * (1 - gamma) ^ (AY_Index[iObs] - 1);
+    iAY = AY_Index[iObs];
+    iLag = Lag[iObs];
+    mu[iObs] = alpha[iAY] + beta[iLag] * (1 - gamma) ^ (AY_Index[iObs] - 1);
     
-    log_loss ~ normal(mu, sig);
+    log_loss ~ normal(mu[iObs], sigma[iLag]);
   }
 }
